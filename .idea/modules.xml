@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/../MakeImages/.idea/MakeImages.iml" filepath="$PROJECT_DIR$/../MakeImages/.idea/MakeImages.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../nips2015_vrnn-master/.idea/nips2015_vrnn-master.iml" filepath="$PROJECT_DIR$/../nips2015_vrnn-master/.idea/nips2015_vrnn-master.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/untitled.iml" filepath="$PROJECT_DIR$/.idea/untitled.iml" />
+    </modules>
+  </component>
+</project>
