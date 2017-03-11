@@ -34,6 +34,13 @@ from scipy.sparse import coo_matrix
 import time
 import tsne
 
+
+from nilearn import plotting
+from nilearn.regions import RegionExtractor
+import nibabel as nib
+
+
+
 # For MCI dataset
 # Original file was mat file
 
@@ -102,7 +109,7 @@ labels = np.array(test_label)
 
 
 input_dim = 116
-n_samples = arr.shape[0]
+samples_for_data = arr.shape[0]
 
 
 
@@ -131,7 +138,7 @@ flags.DEFINE_string('logdir', '/tmp/log/', 'Directory for logs')
 # For bigger model:
 flags.DEFINE_integer('latent_dim', 10, 'Latent dimensionality of model')
 flags.DEFINE_integer('batch_size', 130, 'Minibatch size')
-flags.DEFINE_integer('n_samples', 100, 'Number of samples to save')
+flags.DEFINE_integer('n_samples', 80600, 'Number of samples to save')
 flags.DEFINE_integer('print_every', 20, 'Print every n iterations')
 flags.DEFINE_integer('hidden_size', 30, 'Hidden size for neural networks')
 flags.DEFINE_integer('n_iterations', 1000, 'number of iterations')
@@ -222,26 +229,32 @@ def TimeTrajectory_foroneZ(a, b):
 def train():
     # Input placeholders
     with tf.name_scope('arr'):
-        x = tf.placeholder(tf.float32, [FLAGS.batch_size, input_dim])
+        x = tf.placeholder(tf.float32, [None, input_dim])
 
+    with tf.name_scope('data_for_oneZ'):
+        y = tf.placeholder(tf.float32, [FLAGS.batch_size, FLAGS.latent_dim*2])
 
     with tf.variable_scope('variational'):
         q_mu, q_sigma = inference_network(x=x,
                                           latent_dim=FLAGS.latent_dim,
                                           hidden_size=FLAGS.hidden_size)
 
-        Onez_q_mu, Onez_q_sigma = TimeTrajectory_foroneZ(a=q_mu, b=q_sigma)
-
-        Reshaped_q_mu = tf.reshape(Onez_q_mu, [FLAGS.batch_size, FLAGS.latent_dim])
-        Reshaped_q_sigma = tf.reshape(Onez_q_sigma, [FLAGS.batch_size, FLAGS.latent_dim])
-
-
 
         with st.value_type(st.SampleValue()):
             # The variational distribution is a Normal with mean and standard
             # deviation given by the inference network
-            q_z = st.StochasticTensor(distributions.MultivariateNormalDiag(mu=Reshaped_q_mu, diag_stdev=Reshaped_q_sigma))
+            q_z = st.StochasticTensor(distributions.MultivariateNormalDiag(mu=q_mu, diag_stdev=q_sigma))
 
+    with tf.variable_scope('variational_2'):
+
+        separated_mu = y[:, :FLAGS.latent_dim]
+        separated_sigma = y[:, FLAGS.latent_dim:]
+        q_mu_y, q_sigma_y = TimeTrajectory_foroneZ(a=separated_mu,b=separated_sigma)
+
+        with st.value_type(st.SampleValue()):
+        # The variational distribution is a Normal with mean and standard
+        # deviation given by the inference network
+            q_z_2 = st.StochasticTensor(distributions.MultivariateNormalDiag(mu=q_mu_y, diag_stdev=q_sigma_y))
 
 
     with tf.variable_scope('model'):
@@ -251,14 +264,28 @@ def train():
         p_x_given_z = distributions.MultivariateNormalDiag(mu=p_x_given_z_mu, diag_stdev=p_x_given_z_sigma)
 
 
+    with tf.variable_scope('model_2'):
+        p_x_given_z_mu_2, p_x_given_z_sigma_2 = generative_network(z=q_z_2,
+                                                               hidden_size=FLAGS.hidden_size)
+        p_x_given_z_2 = distributions.MultivariateNormalDiag(mu=p_x_given_z_mu_2, diag_stdev=p_x_given_z_sigma_2)
+
     # Take samples from the prior
     with tf.variable_scope('model', reuse=True):
         p_z = distributions.MultivariateNormalDiag(mu=np.zeros(FLAGS.latent_dim, dtype=np.float32),
                                                    diag_stdev=np.ones(FLAGS.latent_dim, dtype=np.float32))
-        p_z_sample = p_z.sample_n(FLAGS.n_samples)
+        p_z_sample = p_z.sample_n(FLAGS.latent_dim*samples_for_data)
         p_x_given_z_mu, p_x_given_z_sigma = generative_network(z=p_z_sample,
                                                                hidden_size=FLAGS.hidden_size)
         prior_predictive = distributions.MultivariateNormalDiag(mu=p_x_given_z_mu, diag_stdev=p_x_given_z_sigma)
+
+    with tf.variable_scope('model_2', reuse=True):
+        p_z_2 = distributions.MultivariateNormalDiag(mu=np.zeros(FLAGS.latent_dim, dtype=np.float32),
+                                                       diag_stdev=np.ones(FLAGS.latent_dim, dtype=np.float32))
+        p_z_sample_2 = p_z_2.sample_n(FLAGS.latent_dim*samples_for_data)
+        p_x_given_z_mu, p_x_given_z_sigma = generative_network(z=p_z_sample_2,
+                                                                   hidden_size=FLAGS.hidden_size)
+        prior_predictive_2 = distributions.MultivariateNormalDiag(mu=p_x_given_z_mu, diag_stdev=p_x_given_z_sigma)
+        prior_predictive_inp_sample = prior_predictive_2.sample()
 
         # Take samples from the prior with a placeholder
         # with tf.variable_scope('model', reuse=True):
@@ -295,8 +322,8 @@ def train():
 
 
 
-        for i in range(FLAGS.n_iterations * (n_samples // FLAGS.batch_size)):
-            offset = (i) % (n_samples // FLAGS.batch_size)
+        for i in range(FLAGS.n_iterations * (samples_for_data // FLAGS.batch_size)):
+            offset = (i) % (samples_for_data // FLAGS.batch_size)
             # Re-binarize the data at every batch; this improves results
             # Original
             # np_x_fixed = arr2[offset * FLAGS.batch_size:(offset + 1) * FLAGS.batch_size].reshape(-1, input_dim)
@@ -318,10 +345,57 @@ def train():
 
                 t0 = time.time()
 
+        # curr=[]
 
-            if i in range((FLAGS.n_iterations-1) *(n_samples//FLAGS.batch_size), (FLAGS.n_iterations) *(n_samples//FLAGS.batch_size)):
+        if i in range((FLAGS.n_iterations-1) *(samples_for_data//FLAGS.batch_size), (FLAGS.n_iterations) *(samples_for_data//FLAGS.batch_size)):
+            z_mu, z_sigma = sess.run([q_mu, q_sigma], {x: np_x})
+            concat_z_parameters = np.concatenate([z_mu, z_sigma], 1)
+            # Sparsed_Z_mean = sess.run(prior_predictive_inp_sample, {y : concat_z_parameters})
+            Sparsed_Z_mean = sess.run(prior_predictive_inp_sample, {y: concat_z_parameters})
 
-                sess.run([q_mu, q_sigma)
+            print(Sparsed_Z_mean.shape)
+
+            Reshaped_Z_mean= np.reshape(Sparsed_Z_mean,(62,1300,-1))
+            print(Reshaped_Z_mean.shape)
+
+
+
+
+            # Generative_X = None
+            # for z in xrange(FLAGS.latent_dim*samples_for_data):
+            #     Generative_X_mean = Sparsed_Z_mean[z]
+            #
+            #     if z==0:
+            #         Generative_X = Generative_X_mean
+            #     else:
+            #         Generative_X = np.concatenate((Generative_X,  Generative_X_mean), axis=0 )
+            #         print(Generative_X.shape)
+            #
+            #
+            #         if ((z+1) % ((FLAGS.batch_size*FLAGS.latent_dim))) == 0:
+            #             np.savetxt('Generative_X_%d' % ((z+1) /((FLAGS.batch_size*FLAGS.latent_dim))), Generative_X)
+            #             Generative_X = None
+
+
+           ###########################BRAIN_PLOT######################################\
+
+
+            # plotting.plot_roi(Generative_X, bg_img=False, cut_coords=None, output_file=None)
+            # # plotting.plot_prob_atlas()
+            # plotting.show()
+            #
+
+
+            # tf.summary.scalar('posterior_predictive', tf.cast(Sparsed_Z_mean, tf.float32))
+
+
+
+
+
+            # saver = tf.train.Saver({'prior_predictive_2': generative_prior_predictive_inp_sample})
+            # saver.save(sess, 'prior_predictive', global_step=i)
+
+
 
 #             # print(range((FLAGS.n_iterations-1) *(n_samples//FLAGS.batch_size), (FLAGS.n_iterations) *(n_samples//FLAGS.batch_size)))
 #             if i in range((FLAGS.n_iterations-1) *(n_samples//FLAGS.batch_size), (FLAGS.n_iterations) *(n_samples//FLAGS.batch_size)):
@@ -409,6 +483,8 @@ def main(_):
         tf.gfile.DeleteRecursively(FLAGS.logdir)
     tf.gfile.MakeDirs(FLAGS.logdir)
     train()
+
+
 
 
 if __name__ == '__main__':

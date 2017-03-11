@@ -29,7 +29,7 @@ flags.DEFINE_integer('batch_size', 64, 'Minibatch size')
 flags.DEFINE_integer('n_samples', 10, 'Number of samples to save')
 flags.DEFINE_integer('print_every', 10, 'Print every n iterations')
 flags.DEFINE_integer('hidden_size', 200, 'Hidden size for neural networks')
-flags.DEFINE_integer('n_iterations', 100, 'number of iterations')
+flags.DEFINE_integer('n_iterations', 10000, 'number of iterations')
 
 # For bigger model:
 # flags.DEFINE_integer('latent_dim', 100, 'Latent dimensionality of model')
@@ -181,8 +181,7 @@ def train():
       np_elbo, summary_str = sess.run([elbo, summary_op], {x: np_x})
       train_writer.add_summary(summary_str, i)
       print('Iteration: {0:d} ELBO: {1:.3f} Examples/s: {2:.3e}'.format(
-          i,
-          np_elbo / FLAGS.batch_size,
+          i, np_elbo / FLAGS.batch_size,
           FLAGS.batch_size * FLAGS.print_every / (time.time() - t0)))
       t0 = time.time()
 
@@ -219,24 +218,24 @@ def train():
                                'posterior_predictive_map_frame_%d.png' % i))
       plt.close()
 
-  #     nx = ny = 20
-  #     x_values = np.linspace(-3, 3, nx)
-  #     y_values = np.linspace(-3, 3, ny)
-  #     canvas = np.empty((28*ny, 28*nx))
-  #     for ii, yi in enumerate(x_values):
-  #       for j, xi in enumerate(y_values):
-  #         np_z = np.array([[xi, yi]])
-  #         x_mean = sess.run(prior_predictive_inp_sample, {z_input: np_z})
-  #         print(np_z.shape)
-  #         canvas[(nx-ii-1)*28:(nx-ii)*28, j*28:(j+1)*28] = x_mean[0].reshape(28, 28)
-  #     imsave(os.path.join(FLAGS.logdir,
-  #                         'prior_predictive_map_frame_%d.png' % i), canvas)
-  #     plt.figure(figsize=(8, 10))
-  #     Xi, Yi = np.meshgrid(x_values, y_values)
-  #     plt.imshow(canvas, origin="upper")
-  #     plt.tight_layout()
-  #     # plt.savefig('prior_predictive_map_frame_%d.png', Xi, Yi)
-  #
+      nx = ny = 20
+      x_values = np.linspace(-3, 3, nx)
+      y_values = np.linspace(-3, 3, ny)
+      canvas = np.empty((28*ny, 28*nx))
+      for ii, yi in enumerate(x_values):
+        for j, xi in enumerate(y_values):
+          np_z = np.array([[xi, yi]])
+          x_mean = sess.run(prior_predictive_inp_sample, {z_input: np_z})
+          print(x_mean.shape)
+          canvas[(nx-ii-1)*28:(nx-ii)*28, j*28:(j+1)*28] = x_mean[0].reshape(28, 28)
+      imsave(os.path.join(FLAGS.logdir,
+                          'prior_predictive_map_frame_%d.png' % i), canvas)
+      plt.figure(figsize=(8, 10))
+      Xi, Yi = np.meshgrid(x_values, y_values)
+      plt.imshow(canvas, origin="upper")
+      plt.tight_layout()
+      # plt.savefig('prior_predictive_map_frame_%d.png', Xi, Yi)
+
   # # # Make the gifs
   # # if FLAGS.latent_dim == 2:
   # #   os.system(

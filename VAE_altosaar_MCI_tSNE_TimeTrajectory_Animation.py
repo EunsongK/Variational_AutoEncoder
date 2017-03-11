@@ -128,7 +128,7 @@ flags.DEFINE_string('logdir', '/tmp/log/', 'Directory for logs')
 # flags.DEFINE_integer('n_iterations', 1000, 'number of iterations')
 
 # For bigger model:
-flags.DEFINE_integer('latent_dim', 10, 'Latent dimensionality of model')
+flags.DEFINE_integer('latent_dim', 2, 'Latent dimensionality of model')
 flags.DEFINE_integer('batch_size', 130, 'Minibatch size')
 flags.DEFINE_integer('n_samples', 100, 'Number of samples to save')
 flags.DEFINE_integer('print_every', 20, 'Print every n iterations')
@@ -268,6 +268,7 @@ def train():
             offset = (i) % (n_samples // FLAGS.batch_size)
             # Re-binarize the data at every batch; this improves results
             # Original
+            np_x_tsne= arr
             # np_x_fixed = arr2[offset * FLAGS.batch_size:(offset + 1) * FLAGS.batch_size].reshape(-1, input_dim)
             np_x = arr[offset * FLAGS.batch_size:(offset + 1) * FLAGS.batch_size].reshape(-1, input_dim)
             np_y_fixed = labels[offset * FLAGS.batch_size:(offset + 1) * FLAGS.batch_size]
@@ -287,69 +288,71 @@ def train():
 
                 t0 = time.time()
 #             # print(range((FLAGS.n_iterations-2) *(n_samples//FLAGS.batch_size), (FLAGS.n_iterations-1) *(n_samples//FLAGS.batch_size)))
-#             if i in range((FLAGS.n_iterations-2) *(n_samples//FLAGS.batch_size), (FLAGS.n_iterations-1) *(n_samples//FLAGS.batch_size)):
-#               # if offset==0 and i!=0:
-#
-#                 print "Run Y = tsne.tsne(X, no_dims, perplexity) to perform t-SNE on your dataset."
-#                 print "Running example of_input ADNI..."
-#                 # X = sess.run(q_mu, {x: np_x})
-#                 X, q_sigma_out = sess.run([q_mu, q_sigma], {x: np_x})
-#
-#                 # np.savetxt('inferenced_z_mu_%d'%i, X)
-#                 # np.savetxt('inferenced_z_sigma_%d'%i, q_sigma_out)
-#
-#                 labels_tsne = np.argmax(np_y_fixed, 1)
-#
-#                 Y = tsne.tsne(X, 2, 20, 15.0)
-#                 # np.save('Error.npy', Y)
+            if i in range((FLAGS.n_iterations-1) *(n_samples//FLAGS.batch_size), (FLAGS.n_iterations) *(n_samples//FLAGS.batch_size)):
+              # if offset==0 and i!=0:
+
+                print "Run Y = tsne.tsne(X, no_dims, perplexity) to perform t-SNE on your dataset."
+                print "Running example of_input ADNI..."
+                # X = sess.run(q_mu, {x: np_x})
+                X, q_sigma_out = sess.run([q_mu, q_sigma], {x: np_x})
+                # X, q_sigma_out = sess.run([q_mu, q_sigma], {x: np_x_tsne})
+
+
+                # np.savetxt('inferenced_z_mu_%d'%i, X)
+                # np.savetxt('inferenced_z_sigma_%d'%i, q_sigma_out)
+
+                labels_tsne = np.argmax(np_y_fixed, 1)
+
+                Y = tsne.tsne(X, 2, 20, 20.0)
+                # np.savetxt('tsne_Y_values_%d.txt'% i, Y)
 #                 # cmap = plt.get_cmap('bwr')
 #
-#                 fig = plt.figure(facecolor="white", figsize=(8.0, 6.0))
-#                 plt.xlim(-50.0, 50.0)
-#                 plt.ylim(-50.0, 50.0)
-#                 plt.axis("off")
-#
-#                 if labels_tsne[0] == 1:
-#                   plt.scatter(Y[:, 0], Y[:, 1], 20, c = labels_tsne, cmap=mpl.colors.ListedColormap('red'))
-#                 else:
-#                   plt.scatter(Y[:, 0], Y[:, 1], 20, c= labels_tsne, cmap=mpl.colors.ListedColormap('blue'))
-#
-#
-#                 plt.savefig(os.path.join(FLAGS.logdir, 'tSNE_map_frame_%d.png' % i))
+                fig = plt.figure(facecolor="white", figsize=(10.0, 8.0))
+                plt.xlim(-150.0, 150.0)
+                plt.ylim(-150.0, 150.0)
+                plt.axis("off")
+
+                if labels_tsne[0] == 1:
+                  plt.scatter(Y[:, 0], Y[:, 1], 20, c = labels_tsne, cmap=mpl.colors.ListedColormap('red'))
+                else:
+                  plt.scatter(Y[:, 0], Y[:, 1], 20, c= labels_tsne, cmap=mpl.colors.ListedColormap('blue'))
+
+
+                plt.savefig(os.path.join(FLAGS.logdir, 'tSNE_map_frame_%d.png' % i))
 #
 #
 # ##########################################################################################################################################################
-#                 # fig = plt.figure(facecolor="white", figsize=(15.0, 10.0))
-#                 # scat = plt.scatter(Y[:, 0], Y[:, 1], 20, c = labels_tsne, cmap=mpl.colors.ListedColormap('black'))
-#                 scat = plt.scatter([], [], c='white')
+                # fig = plt.figure(facecolor="white", figsize=(15.0, 10.0))
+                # scat = plt.scatter(Y[:, 0], Y[:, 1], 20, c = labels_tsne, cmap=mpl.colors.ListedColormap('black'))
+                scat = plt.scatter([], [], c='white')
+
+                def initiation():
+                    scat.set_offsets([])
+                    return scat,
+
+                def animate(t):
+                    x_ani = Y[:, 0].transpose()
+                    y_ani = Y[:, 1].transpose()
+                    data_ani = np.hstack((x_ani[t:, np.newaxis], y_ani[t:, np.newaxis]))
+                    # print (data_ani)
+                    scat.set_offsets(data_ani)
+                    return scat,
+
+#                 # ims = []
+#                 # timepoint = []
+#                 #
+#                 # for a in scat():
+#                 #     timepoint.append(a)
+#                 #     ims.append(timepoint)
 #
-#                 def initiation():
-#                     scat.set_offsets([])
-#                     return scat,
-#
-#                 def animate(t):
-#                     x_ani = Y[:, 0].transpose()
-#                     y_ani = Y[:, 1].transpose()
-#                     data_ani = np.hstack((x_ani[t:, np.newaxis], y_ani[t:, np.newaxis]))
-#                     # print (data_ani)
-#                     scat.set_offsets(data_ani)
-#                     return scat,
-#
-# #                 # ims = []
-# #                 # timepoint = []
-# #                 #
-# #                 # for a in scat():
-# #                 #     timepoint.append(a)
-# #                 #     ims.append(timepoint)
-# #
-#                 ani = animation.FuncAnimation(fig, animate, init_func=initiation, frames=FLAGS.batch_size + 17 , interval=200, blit=True)
-#                 # plt.show()
-#
-#                 Writer = animation.writers['ffmpeg']
-#                 writer = Writer(fps=13, metadata=dict(artist='Kang, Eun Song (Korea University MiLab)'), bitrate=1800)
-#
-#                 # ani.save("test_%d.mov" %i, writer=writer, dpi=300)
-#                 ani.save(os.path.join(FLAGS.logdir, 'test_%d.mov'%i), writer=writer, dpi=300)
+                ani = animation.FuncAnimation(fig, animate, init_func=initiation, frames=FLAGS.batch_size + 17 , interval=200, blit=True)
+                # plt.show()
+
+                Writer = animation.writers['ffmpeg']
+                writer = Writer(fps=13, metadata=dict(artist='Kang, Eun Song (Korea University MiLab)'), bitrate=1800)
+
+                # ani.save("test_%d.mov" %i, writer=writer, dpi=300)
+                ani.save(os.path.join(FLAGS.logdir, 'test_%d.mov'%i), writer=writer, dpi=300)
 # ##############################################################################################################################################################
 # #
 # #                 #
